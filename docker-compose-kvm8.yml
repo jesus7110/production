@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  haproxy:
+    image: haproxy:2.4
+    ports:
+      - "80:80"
+      - "443:443"
+      - "9200:9200"  # For OpenSearch
+      - "27017:27017"  # For MongoDB
+      - "6379:6379"  # For Redis
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+  mongodb:
+    image: mongo:5.0
+    command: ["--replSet", "rs0", "--bind_ip_all", "--auth"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 10G
+
+  opensearch:
+    image: opensearchproject/opensearch:2.0.0
+    environment:
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch-node1
+      - discovery.seed_hosts=opensearch
+      - cluster.initial_master_nodes=opensearch-node1
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms16g -Xmx16g"
+      - OPENSEARCH_SECURITY_DISABLED=false
+      - "OPENSEARCH_USERS_ROOT_PASSWORD=${OPENSEARCH_ROOT_PASSWORD}"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 16G
+
+  redis:
+    image: redis:6.2
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 5G
+        
+  redis-sentinel:
+    image: redis:6.2
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    volumes:
+      - ./redis-sentinel.conf:/usr/local/etc/redis/sentinel.conf:ro
+    deploy:
+      replicas: 3
+
+volumes:
+  mongodb_data:
+  opensearch_data:
+  redis_data:
+
+networks:
+  default:
+    external:
+      name: swarm_network
