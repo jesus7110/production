@@ -11,9 +11,7 @@ services:
       - "6379:6379"  # For Redis
     volumes:
       - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
-    deploy:
-      placement:
-        constraints: [node.role == manager]
+   
 
   mongodb:
     image: mongo:5.0
@@ -70,7 +68,7 @@ services:
     volumes:
       - ./redis-sentinel.conf:/usr/local/etc/redis/sentinel.conf:ro
     deploy:
-      replicas: 3
+      replicas: 1
 
 volumes:
   mongodb_data:
